@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace ThunderSync
+namespace WindowsFormsApplication1
 {
     static class Program
     {
@@ -16,7 +16,7 @@ namespace ThunderSync
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new ClientForm());
+            Application.Run(new Form1());
         }
     }
 }
