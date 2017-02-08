@@ -69,6 +69,13 @@ namespace ThunderSync
 
         public static void Initialize()
         {
+            //
+            // 이것은 서버와 모든 클라이언트가 공유하는 전역 Property Table 임
+            // 서버와 클라이언트 들이 사전에 Property Table 을 작성하고 
+            // Compile Time 에 공유한다. 
+            // Runtime 공유를 위해서는 URL 방식의 저장 방식이 필요한데
+            // 현 버전에서는 고려하지 않는다.
+            //
 
             // read from property table describes property ID and Name Pair
             // property table file should be looks like ...
@@ -89,12 +96,15 @@ namespace ThunderSync
             //      string [] token = line.Split(',');
             //      _propDict[Conver.ToInt32(token[0])] = token[1];
             // }
+
             _id2NameMap[1] = "volume";
             _name2IdDict["volume"] = 1;
 
             _id2NameMap[2] = "pressure";
             _name2IdDict["pressure"] = 2;
 
+            _id2NameMap[3] = "weight";
+            _name2IdDict["weight"] = 3;
         }
 
         public static string IdToName(int id)
@@ -175,7 +185,7 @@ namespace ThunderSync
         {
             _socket.SendTo(data, data.Length, SocketFlags.None, ep);
         }
-        //public abstract void SetProperty(string name, Type propType, object value);
+        public abstract void SetPropertyValue(int id, object value);
         public abstract void SetPropertyValue(string name, object value);
         protected abstract void Parse(byte[] rcvdBytes, EndPoint endPoint = null);
         protected abstract void CommThreadStartFunc();        
@@ -332,6 +342,8 @@ namespace ThunderSync
         }
         public abstract void Subscribe(string name, Type type, SubscribeMode subsMode, ValueChangeHandler OnValueChange = null, Control WindowsControl = null);
         public abstract void UnSubscribe(string name);
+        public abstract void Subscribe(int id, Type type, SubscribeMode subsMode, ValueChangeHandler OnValueChange = null, Control WindowsControl = null);
+        public abstract void UnSubscribe(int id);
 
         protected void Send(string str)
         {
@@ -350,7 +362,7 @@ namespace ThunderSync
 
                 if (_id2PropMap.ContainsKey(id))
                 {
-                    string str = "unscli|" + p.Name + "|";
+                    string str = "unscli|" + p.ID.ToString() + "|";
                     Send(str);
                 }
             }
@@ -392,54 +404,64 @@ namespace ThunderSync
         public ThunderSyncTextClient(string serverIP) : base(serverIP)
         {
         }
-        public override void Subscribe(string name, Type type, SubscribeMode subsMode, ValueChangeHandler OnValueChange = null, Control WindowsControl = null)
+        public override void Subscribe(int id, Type type, SubscribeMode subsMode, ValueChangeHandler OnValueChange = null, Control WindowsControl = null)
         {
-            int id =  Property.NameToId(name);
             string pmode = ProtocolMode.Text.ToString();
-            string str = "subscli|" + name + "|" + type.ToString() + "|" + subsMode.ToString() + "|" + pmode + "|";
+            string str = "subscli|" + id.ToString() + "|" + type.ToString() + "|" + subsMode.ToString() + "|" + pmode + "|";
             Send(str);
             _id2PropMap[id] = new Property(id, type, subsMode, ProtocolMode.Text, OnValueChange, WindowsControl);
-        }               
-        public override void UnSubscribe(string name)
-        {
-            int id = Property.NameToId(name);
+        }
 
+        public override void Subscribe(string name, Type type, SubscribeMode subsMode, ValueChangeHandler OnValueChange = null, Control WindowsControl = null)
+        {
+            Subscribe(Property.NameToId(name), type, subsMode, OnValueChange, WindowsControl);
+        }
+
+        public override void UnSubscribe(int id)
+        {
             if (_id2PropMap.ContainsKey(id))
             {
-                string str = "unscli|" + name + "|";
+                string str = "unscli|" + id.ToString() + "|";
                 _id2PropMap.Remove(id);
                 Send(str);
             }
         }
-        //public override void SetProperty(string name, Type type, object value)
-        public override void SetPropertyValue(string name, object value)
-        {
-            int id = Property.NameToId(name);
 
+        public override void UnSubscribe(string name)
+        {
+            UnSubscribe(Property.NameToId(name));
+        }
+        public override void SetPropertyValue(int id, object value)
+        {
             if (_id2PropMap.ContainsKey(id))
             {
                 _id2PropMap[id].Value = value;
-                //string str = "setprop|" + name + "|" + type.ToString() + "|" + ValueToString(type, value) + "|";
                 Type type = _id2PropMap[id].Type;
-                string str = "setprop|" + name + "|" + ValueToString(type, value) + "|";
+                string str = "setprop|" + id.ToString() + "|" + ValueToString(type, value) + "|";
                 if (_id2PropMap[id].SubscribeMode == SubscribeMode.Producer)
                 {
                     Send(str);
                 }
             }
-        }      
+        }
+
+        public override void SetPropertyValue(string name, object value)
+        {
+            SetPropertyValue(Property.NameToId(name), value);
+        }
+
         protected override void Parse(byte [] data, EndPoint endPoint = null)
         {
             string rcvdString = Encoding.UTF8.GetString(data);
             string[] strs = rcvdString.Split('|');
-
-            int id = Property.NameToId(strs[1]);
+            string name = strs[1];
+            int id = Property.NameToId(name);
 
             switch (strs[0])
             {
                 case "regprop":
                     {
-                        Subscribe(strs[1], StringToType(strs[2]), StringToSubscribeMode(strs[3]));
+                        Subscribe(name, StringToType(strs[2]), StringToSubscribeMode(strs[3]));
                     }
                     break;
 
@@ -461,10 +483,10 @@ namespace ThunderSync
     {
         public ThunderSyncBinaryClient(string serverIP) : base(serverIP)
         {
-        }        
-        public override void Subscribe(string name, Type type, SubscribeMode subsMode, ValueChangeHandler OnValueChange = null, Control WindowsControl = null)
+        }
+
+        public override void Subscribe(int id, Type type, SubscribeMode subsMode, ValueChangeHandler OnValueChange = null, Control WindowsControl = null)
         {
-            int id = Property.NameToId(name);
             byte[] data = new byte[] {
                 (byte)id,
                 (byte)TypeToByte(type),
@@ -473,9 +495,12 @@ namespace ThunderSync
             Send(data);
             _id2PropMap[id] = new Property(id, type, subsMode, ProtocolMode.Binary, OnValueChange, WindowsControl);
         }
-        public override void UnSubscribe(string name)
+        public override void Subscribe(string name, Type type, SubscribeMode subsMode, ValueChangeHandler OnValueChange = null, Control WindowsControl = null)
         {
-            int id = Property.NameToId(name);
+            Subscribe(Property.NameToId(name), type, subsMode);
+        }
+        public override void UnSubscribe(int id)
+        {
             byte[] data = new byte[] {
                 (byte)Message.UnSubscribe,
                 (byte)id,
@@ -483,23 +508,29 @@ namespace ThunderSync
             Send(data);
         }
 
-        //public override void SetProperty(string name, Type type, object value)
-        public override void SetPropertyValue(string name, object value)
+        public override void UnSubscribe(string name)
         {
-            int id = Property.NameToId(name);
+            UnSubscribe(Property.NameToId(name));
+        }
 
+        public override void SetPropertyValue(int id, object value)
+        {
             if (_id2PropMap.ContainsKey(id))
             {
                 _id2PropMap[id].Value = value;
 
-                //string str = "setprop|" + name + "|" + type.ToString() + "|" + ValueToString(type, value) + "|";
                 Type type = _id2PropMap[id].Type;
-                string str = "setprop|" + name + "|" + ValueToString(type, value) + "|";
+                string str = "setprop|" + id.ToString() + "|" + ValueToString(type, value) + "|";
                 if (_id2PropMap[id].SubscribeMode == SubscribeMode.Producer)
                 {
                     Send(str);
                 }
             }
+        }
+
+        public override void SetPropertyValue(string name, object value)
+        {
+            SetPropertyValue(Property.NameToId(name), value);
         }
         protected override void Parse(byte[] data, EndPoint endPoint = null)
         {

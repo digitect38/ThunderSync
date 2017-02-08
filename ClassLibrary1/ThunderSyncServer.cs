@@ -38,14 +38,18 @@ namespace ThunderSync
                 }
             }
         }
-        public override void SetPropertyValue(string name, object value)
+
+        public override void SetPropertyValue(int id, object value)
         {
-            int id = Property.NameToId(name);
             if (!_subscMap.ContainsKey(id))
             {
                 _subscMap[id] = new Dictionary<EndPoint, SubscribeMode>();
-            }            
+            }
             Send(id, value);
+        }
+        public override void SetPropertyValue(string name, object value)
+        {
+            SetPropertyValue(Property.NameToId(name),value);
         }
         protected override void Parse(byte[] data, EndPoint senderEP = null)
         {
@@ -59,33 +63,43 @@ namespace ThunderSync
                         Type type = StringToType(strs[2]);
                         SubscribeMode subsMode = StringToSubscribeMode(strs[3]);
                         ProtocolMode protoMode = StringToProtocolMode(strs[4]);
-                        int id = Property.NameToId(strs[1]);
+                        //int id = Property.NameToId(strs[1]);
+                        int id = Convert.ToInt32(strs[1]);
 
                         if (!_subscMap.ContainsKey(id)) {
                             _subscMap[id] = new Dictionary<EndPoint, SubscribeMode>();
                             _id2PropMap[id] = new Property(id, type, subsMode, protoMode);
                         }
                         _subscMap[id][senderEP] = subsMode;
-                        OnSubscribe.Invoke(senderEP, subsMode, strs[1]);
+                        OnSubscribe.Invoke(senderEP, subsMode, Property.IdToName(id));
                     }
                     break;
 
                 case "unscli":    // subscribe client
                     {
-                        int id = Property.NameToId(strs[1]);
-                        if (_subscMap[id] != null) {                            
-                            SubscribeMode subsMode = _subscMap[id][senderEP];
-                            OnUnsubscribe.Invoke(senderEP, subsMode, strs[1]);
+                        //int id = Property.NameToId(strs[1]);
+                        int id = Convert.ToInt32(strs[1]);
+                        if (_subscMap.ContainsKey(id))
+                        {
+                            Dictionary<EndPoint, SubscribeMode> cliDic = _subscMap[id];
+                            if (cliDic.ContainsKey(senderEP))
+                            {
+                                SubscribeMode subsMode = cliDic[senderEP];
+                                OnUnsubscribe.Invoke(senderEP, subsMode, Property.IdToName(id));
+                            }
                         }
                     }
                     break;
 
                 case "setprop":     // set property
                     {
-                        int id = Property.NameToId(strs[1]);
-                        Type type = _id2PropMap[id].Type;
-                        object value = StringToValue(type, strs[2]);
-                        SetPropertyValue(strs[1], (double)value);
+                        int id = Convert.ToInt32(strs[1]);
+                        if (_subscMap.ContainsKey(id))
+                        {
+                            Type type = _id2PropMap[id].Type;
+                            object value = StringToValue(type, strs[2]);
+                            SetPropertyValue(id, (double)value);
+                        }
                     }
                     break;
             }
