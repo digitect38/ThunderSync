@@ -1,4 +1,11 @@
-﻿using System;
+﻿////////////////////////////////////////////////////////////////////////////////////////////
+//
+// ThunderSync : The ultra fast data syncronizer
+// digitect38@gmail.com, by Sang Jeong Woo / Seoul /South Korea
+//
+////////////////////////////////////////////////////////////////////////////////////////////
+
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -468,9 +475,7 @@ namespace ThunderSync
     {
         public ThunderSyncBinaryClient(string serverIP) : base(serverIP)
         {
-        }
-
-        
+        }        
         public override void Subscribe(string name, Type type, SubscribeMode subsMode, ValueChangeHandler OnValueChange = null, Control WindowsControl = null)
         {
             int id = Property.NameToId(name);
