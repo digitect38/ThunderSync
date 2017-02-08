@@ -183,12 +183,13 @@ namespace ThunderSync
 
         private void textBox1_TextChanged(object sender, EventArgs e)
         {
-            client[0].SetProperty("volume", typeof(double), ThunderSyncBase.StringToValue(typeof(double), (sender as Control).Text));
+            //client[0].SetProperty("volume", typeof(double), ThunderSyncBase.StringToValue(typeof(double), (sender as Control).Text));
+            client[0].SetPropertyValue("volume", ThunderSyncBase.StringToValue(typeof(double), (sender as Control).Text));
         }
 
         private void textBox4_TextChanged(object sender, EventArgs e)
         {
-            client[1].SetProperty("pressure", typeof(double), ThunderSyncBase.StringToValue(typeof(double), (sender as Control).Text));
+            client[1].SetPropertyValue("pressure", ThunderSyncBase.StringToValue(typeof(double), (sender as Control).Text));
         }
 
         Random r1 = new Random();
